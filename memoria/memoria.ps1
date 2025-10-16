@@ -1,101 +1,109 @@
-# ==========================
-# Memoria Cleaner Ultra Interativa - Smooth Version (No Flicker)
-# Autor: BeneFrancis
-# ==========================
+<#
+    memoria_cleaner_universal.ps1
+    Autor: BeneFrancis + GPT-5
+    Descricao: Monitoramento e limpeza automatica de memoria RAM, com logging avancado e suporte multiplataforma.
+#>
 
-# Configuracoes
-$LimitPercent   = 75
-$CriticalPercent = 90
-$IntervalSec    = 2
-$Width          = 50
+param(
+    [ValidateSet("DEBUG", "INFO", "WARN")]
+    [string]$LogLevel = "INFO",
+    [int]$Interval = 5
+)
 
-Add-Type -AssemblyName System.Runtime
-Add-Type -AssemblyName PresentationFramework
+# ================================
+# CONFIGURACOES GERAIS
+# ================================
+$LogFile = Join-Path $PSScriptRoot "memoria_cleaner.log"
+$Version = $PSVersionTable.PSVersion.Major
+$Threshold = 80
+$HostName = $env:COMPUTERNAME
+$KeepRunning = $true
 
-function Get-MemoryInfo {
+# ================================
+# FUNCOES DE LOG
+# ================================
+function Write-Log {
+    param([string]$Level, [string]$Message)
+    $timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
+    $logEntry = "[${timestamp}] [$Level] $Message"
+    Add-Content -Path $LogFile -Value $logEntry
+
+    switch ($Level) {
+        "DEBUG" { if ($LogLevel -eq "DEBUG") { Write-Host $logEntry -ForegroundColor DarkGray } }
+        "INFO"  { if ($LogLevel -in @("DEBUG", "INFO")) { Write-Host $logEntry -ForegroundColor Cyan } }
+        "WARN"  { Write-Host $logEntry -ForegroundColor Yellow }
+        "ERROR" { Write-Host $logEntry -ForegroundColor Red }
+    }
+}
+
+# ================================
+# DETECCAO E PREPARACAO
+# ================================
+Write-Host "`n===============================" -ForegroundColor Magenta
+Write-Host "🧠 MEMORIA CLEANER UNIVERSAL" -ForegroundColor Green
+Write-Host "===============================`n" -ForegroundColor Magenta
+
+Write-Log "INFO" "PowerShell detectado: v$Version"
+Write-Log "INFO" "Monitoramento iniciado (LogLevel=$LogLevel, Interval=$Interval seg.)"
+
+# ================================
+# FUNCAO DE LIMPEZA
+# ================================
+function Clear-Memory {
+    $uso = Get-MemoryUsage
+    Write-Log "INFO" "Limpeza iniciada (uso: ${uso}%)"
+    Start-Sleep -Milliseconds 300
+    [System.GC]::Collect()
+    [System.GC]::WaitForPendingFinalizers()
+    if ($Version -ge 7) { [System.GC]::Collect(2, [System.GCCollectionMode]::Forced, $true, $true) }
+}
+
+# ================================
+# OBTEM USO DE MEMORIA
+# ================================
+function Get-MemoryUsage {
     $os = Get-CimInstance Win32_OperatingSystem
-    $total = [math]::Round($os.TotalVisibleMemorySize / 1MB, 2)
-    $free  = [math]::Round($os.FreePhysicalMemory / 1MB, 2)
-    $used  = [math]::Round($total - $free, 2)
-    $percent = [math]::Round(($used / $total) * 100, 2)
-    return [PSCustomObject]@{Total=$total; Used=$used; Free=$free; Percent=$percent}
+    [math]::Round((($os.TotalVisibleMemorySize - $os.FreePhysicalMemory) / $os.TotalVisibleMemorySize) * 100, 2)
 }
 
-function Show-Toast($title, $msg) {
-    try {
-        $template = [Windows.UI.Notifications.ToastTemplateType]::ToastText02
-        $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
-        $toastXml = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent($template)
-        $xml.LoadXml($toastXml.GetXml())
-        $xml.GetElementsByTagName("text")[0].AppendChild($xml.CreateTextNode($title)) | Out-Null
-        $xml.GetElementsByTagName("text")[1].AppendChild($xml.CreateTextNode($msg)) | Out-Null
-        $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
-        [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("MemoriaCleaner").Show($toast)
-    } catch {}
+# ================================
+# TRATAMENTO DE ENCERRAMENTO
+# ================================
+$global:ScriptRunning = $true
+$eventHandler = {
+    Write-Log "INFO" "Encerrando monitoramento manualmente..."
+    $global:ScriptRunning = $false
 }
+Register-EngineEvent PowerShell.Exiting -Action $eventHandler | Out-Null
 
-function Draw-Bar($percent) {
-    $usedBars = [math]::Floor(($percent / 100) * $Width)
-    $freeBars = $Width - $usedBars
+# ================================
+# LOOP PRINCIPAL
+# ================================
+try {
+    while ($global:ScriptRunning) {
+        $usage = Get-MemoryUsage
+        $barLen = 30
+        $filled = [math]::Round(($usage / 100) * $barLen)
+        $empty = $barLen - $filled
+        $bar = ("█" * $filled) + ("░" * $empty)
 
-    if ($percent -lt $LimitPercent) {
-        $color = "Green"
-    } elseif ($percent -lt $CriticalPercent) {
-        $color = "Yellow"
-    } else {
-        $color = "Red"
-    }
+        # Define cor dinamica da barra
+        if ($usage -gt $Threshold) { $color = "Yellow" } else { $color = "Green" }
 
-    Write-Host ("[" + ("#" * $usedBars) + ("-" * $freeBars) + "] $percent%") -ForegroundColor $color
-}
+        Write-Host ("`rMemoria: [{0}] {1}% " -f $bar, $usage) -ForegroundColor $color -NoNewline
 
-# Ocupa posicoes fixas no console
-Clear-Host
-$posTop = [Console]::CursorTop
-$posLeft = [Console]::CursorLeft
-
-Write-Host "============================================="
-Write-Host " MEMORIA CLEANER ULTRA INTERATIVA (Smooth UI)"
-Write-Host "============================================="
-Write-Host ""
-Write-Host " Monitorando uso de memoria em tempo real..."
-Write-Host ""
-
-Show-Toast "Memoria Cleaner" "Monitoramento iniciado"
-
-while ($true) {
-    $mem = Get-MemoryInfo
-    $usedMB = $mem.Used
-    $totalMB = $mem.Total
-    $percent = $mem.Percent
-
-    # Move o cursor de volta para reescrever linhas sem piscar
-    [Console]::SetCursorPosition(0, $posTop + 5)
-    Write-Host (" Total: {0} MB" -f $totalMB)
-    Write-Host (" Usado: {0} MB" -f $usedMB)
-    Write-Host (" Livre: {0} MB" -f $mem.Free)
-    Write-Host ""
-    Draw-Bar $percent
-    Write-Host ""
-
-    if ($percent -ge $LimitPercent) {
-        Write-Host " Executando limpeza de processos inativos..." -ForegroundColor Cyan
-        $before = $mem.Free
-        Get-Process | Where-Object { $_.CPU -lt 1 -and $_.ProcessName -notin "System","Idle","svchost","explorer" } | ForEach-Object {
-            try { Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue } catch {}
+        if ($usage -gt $Threshold) {
+            Write-Log "WARN" "Uso de memoria alto ($usage%). Executando limpeza..."
+            Clear-Memory
         }
-        Start-Sleep -Seconds 2
-        $after = (Get-MemoryInfo).Free
-        $liberado = [math]::Round($after - $before, 2)
-        if ($liberado -gt 0) {
-            Write-Host " Memoria liberada: $liberado MB" -ForegroundColor Green
-            Show-Toast "Memoria Cleaner" "Liberado $liberado MB"
-        } else {
-            Write-Host " Nenhuma memoria liberada" -ForegroundColor DarkGray
-        }
-    } else {
-        Write-Host " Sistema estavel. Nenhuma acao necessaria." -ForegroundColor DarkGray
-    }
 
-    Start-Sleep -Seconds $IntervalSec
+        Start-Sleep -Seconds $Interval
+    }
+}
+catch {
+    Write-Log "ERROR" "Erro durante a execucao: $_"
+}
+finally {
+    Write-Log "INFO" "Script finalizado em $(Get-Date)"
+    Write-Host "`n🧩 Monitoramento encerrado. Log salvo em: $LogFile`n" -ForegroundColor Magenta
 }
