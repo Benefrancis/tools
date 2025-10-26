@@ -1,9 +1,11 @@
 # ===========================================================
-# Script: reset-intellij-dashboard-ladoa-lado.ps1
-# Funcao: Reset IntelliJ IDEA com dashboard visual LADO A LADO
+# Script: reset-intellij-dashboard-colorido.ps1
+# Funcao: Reset IntelliJ IDEA com dashboard animado lado a lado, cores e timestamp
 # ===========================================================
 
-$logPath = "$env:USERPROFILE\intellij-reset-dashboard.log"
+# Gerar timestamp unico
+$ts = Get-Date -Format "yyyyMMdd_HHmmss"
+$logPath = "$env:USERPROFILE\intellij-reset-dashboard-$ts.log"
 
 function Write-Log($text) {
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
@@ -23,19 +25,31 @@ function Ask-Option($message) {
     return $answer.ToUpper()
 }
 
-function Show-ProgressBars($stats,$totals) {
+# Barra colorida lado a lado
+function Show-ProgressBarsColorido($stats,$totals) {
     $barWidth = 20
     $line = ""
+    $colors = @{
+        "Configs" = "Cyan"
+        "Cache" = "Yellow"
+        "Plugins" = "Magenta"
+        "Logs" = "Green"
+        "Projetos" = "Blue"
+    }
     foreach ($key in $stats.Keys) {
         $percent = if ($totals[$key] -eq 0) {0} else { [int](($stats[$key]/$totals[$key])*100) }
         $blocks = [int]($percent/5)
         $bar = ("█" * $blocks) + ("-" * ($barWidth - $blocks))
-        $line += "$key [$bar] $percent`%  "
+        $line += "$key ["
+        Write-Host -NoNewline "$line" -ForegroundColor White
+        Write-Host -NoNewline "$bar" -ForegroundColor $colors[$key]
+        Write-Host -NoNewline "] $percent%  "
+        $line = ""
     }
-    Write-Host -NoNewline "$line`r"
+    Write-Host "`r"
 }
 
-Write-Host "===== IntelliJ IDEA RESET DASHBOARD LADO A LADO =====`n"
+Write-Host "===== IntelliJ IDEA RESET DASHBOARD COLORIDO =====`n"
 Write-Log "===== INICIO DO RESET ====="
 
 # Perguntas
@@ -49,20 +63,8 @@ $projectsChoice = Ask-Option "Deseja apagar Configuracoes dos Projetos?"
 $ideaDirs = Get-ChildItem -Path "$env:USERPROFILE" -Directory -Filter ".IntelliJIdea*" -ErrorAction SilentlyContinue
 
 # Inicializar estatisticas
-$stats = @{
-    "Configs" = 0
-    "Cache"   = 0
-    "Plugins" = 0
-    "Logs"    = 0
-    "Projetos"= 0
-}
-$totals = @{
-    "Configs" = $ideaDirs.Count
-    "Cache"   = $ideaDirs.Count
-    "Plugins" = $ideaDirs.Count
-    "Logs"    = $ideaDirs.Count
-    "Projetos"= 0
-}
+$stats = @{ "Configs"=0; "Cache"=0; "Plugins"=0; "Logs"=0; "Projetos"=0 }
+$totals = @{ "Configs"=$ideaDirs.Count; "Cache"=$ideaDirs.Count; "Plugins"=$ideaDirs.Count; "Logs"=$ideaDirs.Count; "Projetos"=0 }
 
 # Funcoes de caminhos
 $configFunc  = { param($d) Join-Path $d.FullName "config" }
@@ -71,12 +73,17 @@ $pluginsFunc = { param($d) Join-Path $d.FullName "config\plugins" }
 $logsFunc    = { param($d) Join-Path $d.FullName "system\log" }
 
 # Projetos
+$ideaProjects = @()
 if ($projectsChoice -eq "T" -or $projectsChoice -eq "S") {
-    $ideaProjects = Get-ChildItem -Path "$env:USERPROFILE" -Recurse -Directory -Force -ErrorAction SilentlyContinue | Where-Object { Test-Path "$($_.FullName)\.idea" }
+    try {
+        $ideaProjects = Get-ChildItem -Path "$env:USERPROFILE" -Recurse -Directory -Force -ErrorAction SilentlyContinue | Where-Object {
+            try { Test-Path (Join-Path $_.FullName ".idea") } catch { $false }
+        }
+    } catch {}
     $totals["Projetos"] = $ideaProjects.Count
 }
 
-# Processar tipos
+# Tipos
 $types = @(
     @{ Name="Configs"; Choice=$configChoice; Func=$configFunc; Dirs=$ideaDirs },
     @{ Name="Cache"; Choice=$cacheChoice; Func=$cacheFunc; Dirs=$ideaDirs },
@@ -85,25 +92,26 @@ $types = @(
     @{ Name="Projetos"; Choice=$projectsChoice; Func={ param($d) Join-Path $d.FullName ".idea"}; Dirs=$ideaProjects }
 )
 
+# Processar tipos
 foreach ($type in $types) {
     $dirs = $type.Dirs
     if ($type.Choice -eq "N" -or $dirs.Count -eq 0) { continue }
     foreach ($dir in $dirs) {
         $subDir = & $type.Func $dir
         if ($subDir -and (Test-Path $subDir)) {
-            Rename-Item $subDir "$subDir-backup"
+            $backupName = "$subDir-backup-$ts"
+            Rename-Item -LiteralPath $subDir -NewName $backupName
             $stats[$type.Name]++
-            Write-Log "$($type.Name) - $($dir.FullName) renomeado para backup"
+            Write-Log "$($type.Name) - $($dir.FullName) renomeado para backup $backupName"
         }
-        Show-ProgressBars $stats $totals
+        Show-ProgressBarsColorido $stats $totals
         Start-Sleep -Milliseconds 50
     }
     Write-Host ""
 }
 
 # Concluir
-[console]::beep(1000,500)
-[console]::beep(1500,500)
+[console]::beep(1000,500); [console]::beep(1500,500)
 Write-Host "`n===== RESET CONCLUIDO! Estatisticas =====" -ForegroundColor Green
 Write-Log "===== RESET CONCLUIDO ====="
 foreach ($key in $stats.Keys) {
