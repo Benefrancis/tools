@@ -1,0 +1,19 @@
+[2025-10-18 19:19:45] [INFO] PowerShell detectado: v7
+[2025-10-18 19:19:45] [INFO] Monitoramento iniciado (LogLevel=INFO, Interval=5 seg.)
+[2025-10-19 11:03:28] [INFO] PowerShell detectado: v5
+[2025-10-19 11:03:28] [INFO] Monitoramento iniciado (LogLevel=INFO, Interval=5 seg.)
+[2025-10-19 11:03:36] [INFO] Script finalizado em 10/19/2025 11:03:36
+[2025-10-19 11:04:54] [INFO] PowerShell detectado: v5
+[2025-10-19 11:04:54] [INFO] Monitoramento iniciado (LogLevel=INFO, Interval=5 seg.)
+[2025-10-19 11:23:47] [INFO] PowerShell detectado: v7
+[2025-10-19 11:23:47] [INFO] Monitoramento iniciado (LogLevel=INFO, Interval=5 seg.)
+[2025-10-24 01:44:13] [INFO] PowerShell detectado: v5
+[2025-10-24 01:44:13] [INFO] Monitoramento iniciado (LogLevel=INFO, Interval=5 seg.)
+[2025-10-24 01:44:48] [INFO] PowerShell detectado: v7
+[2025-10-24 01:44:48] [INFO] Monitoramento iniciado (LogLevel=INFO, Interval=5 seg.)
+[2025-10-24 12:20:32] [INFO] PowerShell detectado: v5
+[2025-10-24 12:20:32] [INFO] Monitoramento iniciado (LogLevel=INFO, Interval=5 seg.)
+[2025-10-24 12:20:54] [INFO] PowerShell detectado: v7
+[2025-10-24 12:20:54] [INFO] Monitoramento iniciado (LogLevel=INFO, Interval=5 seg.)
+[2025-10-25 20:49:39] [INFO] PowerShell detectado: v5
+[2025-10-25 20:49:39] [INFO] Monitoramento iniciado (LogLevel=INFO, Interval=5 seg.)
